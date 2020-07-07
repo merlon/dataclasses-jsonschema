@@ -196,6 +196,11 @@ def test_field_with_default_factory():
 def test_field_with_default_dataclass():
     assert Baz(a=Point(0.0, 0.0)) == Baz.from_dict({})
 
+def remove_noisy_schemas(schema):
+    """Some tests create new data classes on ad-hoc bases. If that happens, other
+    tests can fail or not, depends on the order of the state."""
+    ignored_schemas = ["Dog", "Cat", "Category", "Pet"]
+    return {k: v for k, v in schema.items() if k not in ignored_schemas}
 
 def test_embeddable_json_schema():
     expected = {'Point': POINT_SCHEMA, 'Foo': FOO_SCHEMA}
@@ -217,9 +222,9 @@ def test_embeddable_json_schema():
         'Baz': BAZ_SCHEMA,
         'Box': BOX_SCHEMA,
     }
-    assert expected == JsonSchemaMixin.all_json_schemas()
+    assert expected == remove_noisy_schemas(JsonSchemaMixin.all_json_schemas())
     with pytest.warns(DeprecationWarning):
-        assert expected == JsonSchemaMixin.json_schema()
+        assert expected == remove_noisy_schemas(JsonSchemaMixin.json_schema())
 
 
 def test_json_schema():
@@ -742,6 +747,26 @@ def test_discriminators():
     }
     assert Dog(name="Fido", breed="Dalmation").to_dict() == expected_dog
     assert Dog(name="Fido", breed="Dalmation") == Pet.from_dict(expected_dog)
+
+def test_schema_update():
+    @dataclass
+    class BadDog(JsonSchemaMixin, schema_update={"minProperties": 1}):
+        """A dog"""
+        nick_name: Optional[str]
+        bad_dog_name: Optional[str]
+
+    expected_dog_schema = {
+        "BadDog": {
+            "description": """A dog""",
+            "type": "object",
+            'minProperties': 1,
+            "properties": {"nick_name": {"type": "string"}, "bad_dog_name": {"type": "string"}},
+        }
+    }
+    assert BadDog.json_schema(embeddable=True, schema_type=SchemaType.OPENAPI_3) == expected_dog_schema
+    with pytest.raises(ValidationError):
+        BadDog.from_dict({})
+    assert BadDog(nick_name="Foo", bad_dog_name=None) == BadDog.from_dict({"nick_name": "Foo"})
 
 
 def test_set_decode_encode():

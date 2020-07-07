@@ -207,6 +207,7 @@ class JsonSchemaMixin:
     __discriminator_inherited: bool
     __allow_additional_props: bool
     __serialise_properties: Union[Tuple[str, ...], bool]
+    __schema_update: Optional[Dict[str, Any]]
 
     @classmethod
     def _discriminator(cls) -> Optional[str]:
@@ -217,6 +218,7 @@ class JsonSchemaMixin:
             discriminator: Optional[Union[str, bool]] = None,
             allow_additional_props: bool = True,
             serialise_properties: Union[Tuple[str, ...], bool] = False,
+            schema_update: Optional[Dict[str, Any]] = None,
     ):
         # Initialise caches
         cls.__schema = {}
@@ -247,6 +249,7 @@ class JsonSchemaMixin:
             else:
                 cls.__discriminator_name = None
         cls.__allow_additional_props = allow_additional_props
+        cls.__schema_update = schema_update
 
     @classmethod
     def field_mapping(cls) -> Dict[str, str]:
@@ -797,6 +800,9 @@ class JsonSchemaMixin:
                 schema['description'] = cls.__doc__
 
             cls.__schema[schema_options] = schema
+
+        if cls.__schema_update is not None:
+            schema.update(**cls.__schema_update)
 
         if embeddable:
             return {**definitions, cls.__name__: schema}
